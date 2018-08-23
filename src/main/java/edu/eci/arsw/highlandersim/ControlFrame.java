@@ -20,11 +20,12 @@ import java.awt.event.ActionEvent;
 import javax.swing.JLabel;
 import javax.swing.JTextField;
 import java.awt.Color;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.JScrollBar;
 
 public class ControlFrame extends JFrame {
 
-    private static final int DEFAULT_IMMORTAL_HEALTH = 100;
+    private static final int DEFAULT_IMMORTAL_HEALTH = 100; //el valor de el total de vida de N jugadores es N*100
     private static final int DEFAULT_DAMAGE_VALUE = 10;
 
     private JPanel contentPane;
@@ -35,6 +36,10 @@ public class ControlFrame extends JFrame {
     private JLabel statisticsLabel;
     private JScrollPane scrollPane;
     private JTextField numOfImmortals;
+    
+    private AtomicBoolean isPause;
+    private AtomicBoolean isStop;
+    private Thread mainThread;
 
     /**
      * Launch the application.
@@ -65,20 +70,27 @@ public class ControlFrame extends JFrame {
 
         JToolBar toolBar = new JToolBar();
         contentPane.add(toolBar, BorderLayout.NORTH);
-
+        
+        isPause = new AtomicBoolean(false);
+        isStop = new AtomicBoolean(false);
+        mainThread = Thread.currentThread();
+        
+        final JButton btnStop = new JButton("STOP");
+        
         final JButton btnStart = new JButton("Start");
         btnStart.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
 
                 immortals = setupInmortals();
-
+                isStop.set(false);
                 if (immortals != null) {
                     for (Immortal im : immortals) {
                         im.start();
                     }
                 }
-
+                
                 btnStart.setEnabled(false);
+                btnStop.setEnabled(true);
 
             }
         });
@@ -87,10 +99,7 @@ public class ControlFrame extends JFrame {
         JButton btnPauseAndCheck = new JButton("Pause and check");
         btnPauseAndCheck.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-
-                /*
-				 * COMPLETAR
-                 */
+                isPause.set(true);
                 int sum = 0;
                 for (Immortal im : immortals) {
                     sum += im.getHealth();
@@ -108,10 +117,10 @@ public class ControlFrame extends JFrame {
 
         btnResume.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                /**
-                 * IMPLEMENTAR
-                 */
-
+                isPause.set(false);
+                synchronized(mainThread){
+                    mainThread.notifyAll();
+                }
             }
         });
 
@@ -125,7 +134,16 @@ public class ControlFrame extends JFrame {
         toolBar.add(numOfImmortals);
         numOfImmortals.setColumns(10);
 
-        JButton btnStop = new JButton("STOP");
+        
+        btnStop.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                isStop.set(true);
+                btnStop.setEnabled(false);
+                btnStart.setEnabled(true);
+            }
+        });
+        
         btnStop.setForeground(Color.RED);
         toolBar.add(btnStop);
 
@@ -152,7 +170,7 @@ public class ControlFrame extends JFrame {
             List<Immortal> il = new LinkedList<Immortal>();
 
             for (int i = 0; i < ni; i++) {
-                Immortal i1 = new Immortal("im" + i, il, DEFAULT_IMMORTAL_HEALTH, DEFAULT_DAMAGE_VALUE,ucb);
+                Immortal i1 = new Immortal("im" + i, il, DEFAULT_IMMORTAL_HEALTH, DEFAULT_DAMAGE_VALUE,ucb,mainThread,isPause,isStop);
                 il.add(i1);
             }
             return il;
